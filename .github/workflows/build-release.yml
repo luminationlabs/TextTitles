@@ -1,0 +1,142 @@
+name: Build and Release Processing Sketch
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: Ubuntu-x86_64
+          - os: windows-latest
+            platform: Windows-x86_64
+          - os: macos-latest
+            platform: macOS-Intel
+            variant: macos-x86_64
+          - os: macos-latest
+            platform: macOS-Apple
+            variant: macos-aarch64
+
+    name: Build for ${{ matrix.platform }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Install Processing (Linux)
+        run: |
+          mkdir -p ~/processing
+          cd ~/processing
+          curl -L "https://github.com/processing/processing4/releases/download/processing-1293-4.3/processing-4.3-linux-x64.tgz" -o processing.tgz
+          tar -xzf processing.tgz --strip-components=1
+          echo "$HOME/processing" >> $GITHUB_PATH
+        if: matrix.os == 'ubuntu-latest'
+
+      - name: Set up Homebrew (macOS)
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+        if: matrix.os == 'macos-latest'
+
+      - name: Install Processing (macOS)
+        run: |
+          brew install --cask processing
+          mkdir -p "$HOME/bin"
+          cat > "$HOME/bin/processing-java" <<'SCRIPT'
+          #!/bin/sh
+
+          # Prevents processing-java from stealing focus, see:
+          # https://github.com/processing/processing/issues/3996.
+          OPTION_FOR_HEADLESS_RUN=""
+          for ARG in "$@"
+          do
+              if [ "$ARG" = "--build" ]; then
+                  OPTION_FOR_HEADLESS_RUN="-Djava.awt.headless=true"
+              fi
+          done
+          cd "/Applications/Processing.app/Contents/Java" && /Applications/Processing.app/Contents/PlugIns/jdk-*/Contents/Home/bin/java -Djna.nosys=true $OPTION_FOR_HEADLESS_RUN -cp "ant.jar:ant-launcher.jar:core.jar:jna.jar:flatlaf.jar:pde.jar:jna-platform.jar:core/library/jogl-all.jar:core/library/gluegen-rt.jar:core/library/core.jar:modes/java/mode/com.ibm.icu.jar:modes/java/mode/org.eclipse.core.contenttype.jar:modes/java/mode/org.eclipse.core.jobs.jar:modes/java/mode/org.eclipse.lsp4j.jsonrpc.jar:modes/java/mode/org.eclipse.text.jar:modes/java/mode/org.eclipse.jdt.compiler.apt.jar:modes/java/mode/antlr-4.7.2-complete.jar:modes/java/mode/org.eclipse.core.runtime.jar:modes/java/mode/jdtCompilerAdapter.jar:modes/java/mode/classpath-explorer-1.0.jar:modes/java/mode/org.eclipse.equinox.common.jar:modes/java/mode/gson.jar:modes/java/mode/org.eclipse.lsp4j.jar:modes/java/mode/org.netbeans.swing.outline.jar:modes/java/mode/org.eclipse.osgi.jar:modes/java/mode/JavaMode.jar:modes/java/mode/jsoup-1.7.1.jar:modes/java/mode/antlr.jar:modes/java/mode/org.eclipse.core.resources.jar:modes/java/mode/org.eclipse.jdt.core.jar:modes/java/mode/org.eclipse.equinox.preferences.jar" processing.mode.java.Commander "$@"
+          SCRIPT
+          chmod 755 "$HOME/bin/processing-java"
+          ls -l "$HOME/bin/processing-java"
+          echo "$HOME/bin" >> $GITHUB_PATH
+        if: matrix.os == 'macos-latest'
+
+      - name: Install Processing (Windows)
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/processing/processing4/releases/download/processing-1293-4.3/processing-4.3-windows-x64.zip" -OutFile "processing.zip"
+          Expand-Archive -Path "processing.zip" -DestinationPath "$HOME/processing"
+          dir "$HOME/processing/processing-4.3"
+        shell: pwsh
+        if: matrix.os == 'windows-latest'
+
+      - name: Export Application (Linux)
+        run: |
+          mkdir -p "${{ github.workspace }}/output"
+          processing-java --sketch="${{ github.workspace }}/TextTitles" --force --output="${{ github.workspace }}/output" --export
+        if: matrix.os == 'ubuntu-latest'
+
+      - name: Export Application (macOS)
+        run: |
+          mkdir -p "${{ github.workspace }}/output"
+          chmod 755 "$HOME/bin/processing-java"
+          processing-java --sketch="${{ github.workspace }}/TextTitles" --force --output="${{ github.workspace }}/output" --variant=${{ matrix.variant }} --export
+        if: matrix.os == 'macos-latest'
+
+      - name: Export Application (Windows)
+        run: |
+          $tempDir = "C:\Users\runneradmin\AppData\Local\Temp\processing"
+          New-Item -ItemType Directory -Force -Path $tempDir
+          $acl = Get-Acl $tempDir
+          $accessRule = New-Object System.Security.AccessControl.FileSystemAccessRule("Everyone","FullControl","ContainerInherit,ObjectInherit","None","Allow")
+          $acl.SetAccessRule($accessRule)
+          Set-Acl $tempDir $acl
+
+          New-Item -ItemType Directory -Force -Path "${{ github.workspace }}/output"
+          $acl = Get-Acl "${{ github.workspace }}/output"
+          $acl.SetAccessRule($accessRule)
+          Set-Acl "${{ github.workspace }}/output" $acl
+
+          & "$HOME/processing/processing-4.3/processing-java.exe" --sketch="${{ github.workspace }}/TextTitles" --force --output="${{ github.workspace }}/output" --export
+        shell: pwsh
+        if: matrix.os == 'windows-latest'
+
+      - name: Archive Built Binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: TextTitles-${{ matrix.platform }}
+          path: output/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Fix macOS App Permissions
+        run: |
+          find artifacts -name "*.app" -type d -exec chmod -R +rx {} \;
+          find artifacts -path "*/Contents/MacOS/*" -type f -exec chmod +x {} \;
+
+      - name: Clean Source Folders
+        run: |
+          find artifacts -name "source" -type d -exec rm -rf {} +
+
+      - name: Create Release Assets
+        run: |
+          cd artifacts
+          zip -r TextTitles-${{ github.event.release.tag_name }}-Ubuntu-x86_64.zip TextTitles-Ubuntu-x86_64
+          zip -r TextTitles-${{ github.event.release.tag_name }}-macOS-Apple.zip TextTitles-macOS-Apple
+          zip -r TextTitles-${{ github.event.release.tag_name }}-macOS-Intel.zip TextTitles-macOS-Intel
+          zip -r TextTitles-${{ github.event.release.tag_name }}-Windows-x86_64.zip TextTitles-Windows-x86_64
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/TextTitles-${{ github.event.release.tag_name }}-*.zip
