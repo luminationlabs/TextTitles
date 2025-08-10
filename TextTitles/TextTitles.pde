@@ -474,13 +474,18 @@ void saveConfig() {
     
     if (fileLines != null) {
       int i = 0;
-      // Skip existing JSON configuration
-      while (i < fileLines.length && !fileLines[i].trim().isEmpty()) {
-        i++;
-      }
-      // Skip the blank line if it exists
-      if (i < fileLines.length) {
-        i++;
+      // Check if the first line looks like JSON configuration
+      boolean hasConfig = fileLines.length > 0 && fileLines[0].trim().startsWith("{");
+      
+      if (hasConfig) {
+        // Skip existing JSON configuration
+        while (i < fileLines.length && !fileLines[i].trim().isEmpty()) {
+          i++;
+        }
+        // Skip the blank line if it exists
+        if (i < fileLines.length) {
+          i++;
+        }
       }
       // Add remaining content lines
       while (i < fileLines.length) {
