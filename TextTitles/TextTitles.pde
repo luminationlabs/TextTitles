@@ -464,14 +464,17 @@ void exit() {
 void saveConfig() {
   if (configFile == null || isImageFile || !configFile.exists()) return;
   
-  // Create JSON configuration
-  JSONObject config = new JSONObject();
-  config.setInt("textSize", textSize);
-  config.setFloat("secondLineReduction", secondLineReduction);
-  config.setBoolean("secondLineItalics", secondLineItalics);
-  config.setFloat("lineHeight", lineHeight);
-  config.setInt("currentIndex", currentIndex);
-  config.setString("transitionType", transitionType);
+  // Build JSON configuration manually to control decimal precision
+  // (JSONObject's setFloat is problematic for saving reasonable decimals)
+  StringBuilder jsonBuilder = new StringBuilder();
+  jsonBuilder.append("{\n");
+  jsonBuilder.append("  \"textSize\": ").append(textSize).append(",\n");
+  jsonBuilder.append("  \"secondLineReduction\": ").append(String.format("%.2f", secondLineReduction)).append(",\n");
+  jsonBuilder.append("  \"secondLineItalics\": ").append(secondLineItalics).append(",\n");
+  jsonBuilder.append("  \"lineHeight\": ").append(String.format("%.2f", lineHeight)).append(",\n");
+  jsonBuilder.append("  \"currentIndex\": ").append(currentIndex).append(",\n");
+  jsonBuilder.append("  \"transitionType\": \"").append(transitionType).append("\"\n");
+  jsonBuilder.append("}");
 
   // Print "Saving index x for file y" message
   String message = "Saving slide index " + currentIndex + " for: " + configFile.getName();
@@ -506,7 +509,7 @@ void saveConfig() {
     
     // Write back to file
     PrintWriter output = createWriter(configFile.getPath());
-    output.println(config.toString());
+    output.println(jsonBuilder.toString());
     output.println();  // Blank line separator
     for (String line : contentLines) {
       output.println(line);
