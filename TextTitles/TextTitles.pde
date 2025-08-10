@@ -163,6 +163,9 @@ void keyPressed() {
           loadConfig();
         }
       }
+    } else if (keyCode == ESC) {
+      // Handle ESC key - save and exit
+      exit();
     }
   } else if (isImageFile) {
     if (keyCode == LEFT || keyCode == RIGHT) {
@@ -174,6 +177,9 @@ void keyPressed() {
         saveConfig();
       }
       showingFileList = true;
+    } else if (keyCode == ESC) {
+      // Handle ESC key - save and exit
+      exit();
     }
   } else {
     if (keyCode == LEFT || keyCode == RIGHT) {
@@ -198,6 +204,9 @@ void keyPressed() {
         saveConfig();
       }
       showingFileList = true;
+    } else if (keyCode == ESC) {
+      // Handle ESC key - save and exit
+      exit();
     }
   }
 }
@@ -426,7 +435,8 @@ void displaySlide(String[] slide, float alpha, float yPosition) {
 }
 
 void exit() {
-  if (!showingFileList && !isImageFile) {
+  // Always save config when exiting if we have a text file loaded
+  if (configFile != null && !isImageFile && configFile.exists()) {
     saveConfig();
   }
   

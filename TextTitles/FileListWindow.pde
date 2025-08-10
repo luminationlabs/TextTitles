@@ -194,6 +194,9 @@ class FileListWindow extends PApplet {
         ((TextTitles)parent).controlWindow.keyCode = keyCode;
         ((TextTitles)parent).controlWindow.keyPressed();
       }
+    } else if (keyCode == ESC) {
+      // Handle ESC key - call parent's exit method
+      parent.exit();
     } else {
       // Pass other key events to parent
       ((TextTitles)parent).keyCode = keyCode;
