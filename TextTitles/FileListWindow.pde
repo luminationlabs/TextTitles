@@ -77,9 +77,10 @@ class FileListWindow extends PApplet {
         ((TextTitles)parent).showingFileList = false;  // Set to false to show the file
         if (((TextTitles)parent).isImageFile) {
           // Load the image when selecting an image file
-          ((TextTitles)parent).img = ((TextTitles)parent).loadImage(((TextTitles)parent).configFile.getPath());
+          ((TextTitles)parent).loadImageWithOrientation(((TextTitles)parent).configFile.getPath());
           ((TextTitles)parent).slides = null;  // Clear slides when loading an image
         } else {
+          ((TextTitles)parent).img = null;  // Clear image when switching to text
           ((TextTitles)parent).loadConfig();
         }
         parent.redraw();  // Force the parent window to update
@@ -133,9 +134,10 @@ class FileListWindow extends PApplet {
         ((TextTitles)parent).isImageFile = filename.endsWith(".jpg") || filename.endsWith(".png");
         if (((TextTitles)parent).isImageFile) {
           // Load the image when selecting an image file
-          ((TextTitles)parent).img = ((TextTitles)parent).loadImage(((TextTitles)parent).configFile.getPath());
+          ((TextTitles)parent).loadImageWithOrientation(((TextTitles)parent).configFile.getPath());
           ((TextTitles)parent).slides = null;  // Clear slides when loading an image
         } else {
+          ((TextTitles)parent).img = null;  // Clear image when switching to text
           ((TextTitles)parent).loadConfig();
         }
       }
@@ -153,9 +155,10 @@ class FileListWindow extends PApplet {
         ((TextTitles)parent).showingFileList = false;  // Set to false to show the file
         if (((TextTitles)parent).isImageFile) {
           // Load the image when selecting an image file
-          ((TextTitles)parent).img = ((TextTitles)parent).loadImage(((TextTitles)parent).configFile.getPath());
+          ((TextTitles)parent).loadImageWithOrientation(((TextTitles)parent).configFile.getPath());
           ((TextTitles)parent).slides = null;  // Clear slides when loading an image
         } else {
+          ((TextTitles)parent).img = null;  // Clear image when switching to text
           ((TextTitles)parent).loadConfig();
         }
         parent.redraw();  // Force the parent window to update

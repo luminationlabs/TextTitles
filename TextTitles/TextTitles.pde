@@ -6,6 +6,9 @@ import processing.data.JSONObject;
 import java.util.Arrays;
 import java.util.Comparator;
 import javax.swing.JOptionPane;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import java.io.IOException;
 
 int stripeHeight = 200;
 int stripeBottomMargin = 50;
@@ -33,6 +36,15 @@ File configFile;
 long lastModifiedTime;
 boolean isImageFile = false;
 PImage img;
+int imageOrientation = 1;  // EXIF orientation value (1-8)
+PImage loadingImg;  // Temporary image being loaded
+int loadingOrientation = 1;  // Orientation for loading image
+
+// Cached reflection references for metadata-extractor
+Class<?> cachedMetadataClass = null;
+Class<?> cachedDirectoryClass = null;
+Integer cachedOrientationTag = null;
+boolean metadataExtractorAvailable = true;
 boolean slideTransitioned = false;
 ControlWindow controlWindow;
 FileListWindow fileListWindow;
@@ -145,7 +157,7 @@ void keyPressed() {
         showingFileList = false;
         if (isImageFile) {
           // Load the image when selecting an image file
-          img = loadImage(configFile.getPath());
+          loadImageWithOrientation(configFile.getPath());
           slides = null;  // Clear slides when loading an image
         } else {
           loadConfig();
@@ -218,14 +230,32 @@ void draw() {
     // Display the selected image full screen
     background(0); // Black background
     if (img != null) {
+      pushMatrix();
+      translate(width/2, height/2);
+      
+      // Apply rotation based on EXIF orientation
+      applyImageOrientation(imageOrientation);
+      
       // Calculate scaling to fit screen while maintaining aspect ratio
-      float scaleW = (float)width / img.width;
-      float scaleH = (float)height / img.height;
+      float imgW = img.width;
+      float imgH = img.height;
+      
+      // For 90 or 270 degree rotations, swap width and height for scaling calculation
+      if (imageOrientation == 6 || imageOrientation == 8 || 
+          imageOrientation == 5 || imageOrientation == 7) {
+        float temp = imgW;
+        imgW = imgH;
+        imgH = temp;
+      }
+      
+      float scaleW = (float)width / imgW;
+      float scaleH = (float)height / imgH;
       float scale = min(scaleW, scaleH);
       
-      // Center the image
+      // Draw the image centered at origin
       imageMode(CENTER);
-      image(img, width/2, height/2, img.width * scale, img.height * scale);
+      image(img, 0, 0, img.width * scale, img.height * scale);
+      popMatrix();
     }
   } else if (slides != null && !slides.isEmpty()) {  // Ensure slides are not empty before accessing them
     // Check if the text file still exists
@@ -613,5 +643,94 @@ void updateFileList() {
         selectedFileIndex = files.length - 1;
       }
     }
+  }
+}
+
+void loadImageWithOrientation(String imagePath) {
+  // Get orientation before loading
+  loadingOrientation = getImageOrientation(imagePath);
+  
+  // Load the image into temporary variable
+  try {
+    File imageFile = new File(imagePath);
+    BufferedImage buffImg = ImageIO.read(imageFile);
+    if (buffImg != null) {
+      loadingImg = new PImage(buffImg);
+    } else {
+      loadingImg = loadImage(imagePath);
+    }
+  } catch (IOException e) {
+    loadingImg = loadImage(imagePath);
+  }
+  
+  // Once loaded successfully, swap to main image
+  if (loadingImg != null) {
+    img = loadingImg;
+    imageOrientation = loadingOrientation;
+    loadingImg = null;  // Clear loading image
+  }
+}
+
+int getImageOrientation(String imagePath) {
+  if (!metadataExtractorAvailable) {
+    return 1; // Skip if we know it's not available
+  }
+  
+  // Try metadata-extractor if available
+  try {
+    // Cache the classes on first use
+    if (cachedMetadataClass == null) {
+      cachedMetadataClass = Class.forName("com.drew.imaging.ImageMetadataReader");
+      cachedDirectoryClass = Class.forName("com.drew.metadata.exif.ExifIFD0Directory");
+      cachedOrientationTag = (Integer) cachedDirectoryClass.getField("TAG_ORIENTATION").get(null);
+    }
+    
+    Object metadata = cachedMetadataClass.getMethod("readMetadata", File.class).invoke(null, new File(imagePath));
+    Object exifDirectory = metadata.getClass().getMethod("getFirstDirectoryOfType", Class.class).invoke(metadata, cachedDirectoryClass);
+    
+    if (exifDirectory != null) {
+      Boolean hasTag = (Boolean) exifDirectory.getClass().getMethod("containsTag", int.class).invoke(exifDirectory, cachedOrientationTag);
+      
+      if (hasTag) {
+        return (Integer) exifDirectory.getClass().getMethod("getInt", int.class).invoke(exifDirectory, cachedOrientationTag);
+      }
+    }
+  } catch (ClassNotFoundException e) {
+    // metadata-extractor not available
+    metadataExtractorAvailable = false;
+  } catch (Exception e) {
+    // Failed to read metadata for this image
+  }
+  
+  return 1; // Default orientation
+}
+
+void applyImageOrientation(int orientation) {
+  switch(orientation) {
+    case 1: // Normal
+      break;
+    case 2: // Flip horizontal
+      scale(-1, 1);
+      break;
+    case 3: // Rotate 180
+      rotate(PI);
+      break;
+    case 4: // Flip vertical
+      scale(1, -1);
+      break;
+    case 5: // Transpose
+      rotate(PI/2);
+      scale(1, -1);
+      break;
+    case 6: // Rotate 90 CW
+      rotate(PI/2);
+      break;
+    case 7: // Transverse
+      rotate(PI/2);
+      scale(-1, 1);
+      break;
+    case 8: // Rotate 270 CW
+      rotate(-PI/2);
+      break;
   }
 }
