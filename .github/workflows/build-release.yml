@@ -35,14 +35,23 @@ jobs:
           echo "$HOME/processing" >> $GITHUB_PATH
         if: matrix.os == 'ubuntu-latest'
 
-      - name: Set up Homebrew (macOS)
-        id: set-up-homebrew
-        uses: Homebrew/actions/setup-homebrew@master
-        if: matrix.os == 'macos-latest'
-
       - name: Install Processing (macOS)
         run: |
-          brew install --cask processing
+          # Download Processing 4.3.4 based on architecture
+          if [ "${{ matrix.variant }}" = "macos-aarch64" ]; then
+            PROCESSING_URL="https://github.com/processing/processing4/releases/download/processing-1297-4.3.4/processing-4.3.4-macos-aarch64.zip"
+          else
+            PROCESSING_URL="https://github.com/processing/processing4/releases/download/processing-1297-4.3.4/processing-4.3.4-macos-x64.zip"
+          fi
+          
+          echo "Downloading Processing from: $PROCESSING_URL"
+          curl -L "$PROCESSING_URL" -o processing.zip
+          
+          # Extract and move to Applications
+          unzip -q processing.zip
+          sudo mv Processing.app /Applications/
+          
+          # Create processing-java wrapper
           mkdir -p "$HOME/bin"
           cat > "$HOME/bin/processing-java" <<'SCRIPT'
           #!/bin/sh
