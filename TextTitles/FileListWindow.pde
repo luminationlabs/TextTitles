@@ -22,6 +22,29 @@ class FileListWindow extends PApplet {
     surface.setTitle("File List");
   }
   
+  private String getDisplayName(File file) {
+    String name = file.getName();
+    String nameLower = name.toLowerCase();
+    
+    // Check if it's a .txt file
+    if (nameLower.endsWith(".txt")) {
+      // Remove .txt extension
+      return name.substring(0, name.length() - 4);
+    }
+    
+    // Check if it's an image file (only .jpg and .png supported)
+    if (nameLower.endsWith(".jpg") || nameLower.endsWith(".png")) {
+      // Find the last dot to remove extension
+      int lastDot = name.lastIndexOf('.');
+      if (lastDot > 0) {
+        return "■ " + name.substring(0, lastDot);
+      }
+    }
+    
+    // For all other files, return as-is
+    return name;
+  }
+  
   public void draw() {
     background(40);
     
@@ -53,7 +76,7 @@ class FileListWindow extends PApplet {
           
           fill(i == ((TextTitles)parent).selectedFileIndex ? 255 : 200);
           textSize(14);
-          text(((TextTitles)parent).files[i].getName(), 10, y, width - 20, itemHeight);  // Align text to top of item area
+          text(getDisplayName(((TextTitles)parent).files[i]), 10, y, width - 20, itemHeight);  // Use formatted display name
         }
       }
       
